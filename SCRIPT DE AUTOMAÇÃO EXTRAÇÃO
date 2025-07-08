@@ -1,120 +1,188 @@
-Sub ValidarPlanilhaDeVendas()
+Sub ProcessarArquivos()
+    Dim compradoresCategorias As Object
+    Dim primeiraPlanilha As Boolean
+    Dim pastaAlvo As String, pastaDestino As String, caminhoDestino As String
+    Dim arquivo As String, wbDestino As Workbook, wbOrigem As Workbook
+    Dim ws As Worksheet
+    Dim ultimaLinha As Long, numeroDia As String
+    Dim numeroMes As String
+    Dim dataFormatada As Date, dataEspecifica As String
+    Dim NomeLoja As String
 
-    ' Declaração de variáveis
-    Dim ultimaLinha As Long
-    Dim i As Long
-    Dim codigoProduto As String
-    Dim dataVenda As Date
-    Dim valorVenda As Double
-    Dim erroEncontrado As Boolean
-    Dim errosTotais As Boolean
-    Dim celula As Range
+    ' Inicializar o mapeamento de categorias para compradores
+    Set compradoresCategorias = CreateObject("Scripting.Dictionary")
+    compradoresCategorias.Add "Bazar", "GISLAINE"
+    compradoresCategorias.Add "Bebidas", "ALEX"
+    compradoresCategorias.Add "Cereais", "EDUARDO"
+    compradoresCategorias.Add "Diet & Light", "JOHNSON"
+    compradoresCategorias.Add "Limpeza", "JOHNSON"
+    compradoresCategorias.Add "Mercearia 1", "ALEILSON"
+    compradoresCategorias.Add "Mercearia 2", "ALEILSON"
+    compradoresCategorias.Add "Pet Shop", "JOHNSON"
+    compradoresCategorias.Add "Carnes", "ALEX"
+    compradoresCategorias.Add "Frios", "ARLINDO"
+    compradoresCategorias.Add "FLV", "NATALIA"
+    compradoresCategorias.Add "Especial", "MARTHA"
+    compradoresCategorias.Add "Perfumaria", "GISLAINE"
+    compradoresCategorias.Add "Padaria Casa", "JULIANA"
+    compradoresCategorias.Add "Padaria Ind", "JULIANA"
     
-    ' Verifica se a planilha ativa é "BD"
-    If ActiveSheet.Name <> "BD" Then
-        MsgBox "Por favor, execute este código apenas na planilha 'BD'.", vbExclamation
-        Exit Sub
+
+    ' Configurar pastas e arquivo de destino
+    pastaAlvo = "C:\Users\Pedro Cruz\Documents\Dados DASH VBA\novos\"
+    pastaDestino = "C:\Users\Pedro Cruz\Documents\Dados DASH VBA\"
+    caminhoDestino = pastaDestino & "consolidação VBA 2024.xlsx"
+
+    ' Abrir ou criar o arquivo de destino
+    On Error Resume Next
+    Set wbDestino = Workbooks.Open(caminhoDestino)
+    On Error GoTo 0
+    If wbDestino Is Nothing Then
+        Set wbDestino = Workbooks.Add
+        wbDestino.SaveAs Filename:=caminhoDestino
     End If
 
-    ' Definir a data limite do relatório
-    Dim dataLimite As Date
-    dataLimite = DateSerial(2025, 5, 20)
+    ' Inicializar flag para a primeira planilha
+    primeiraPlanilha = True
 
-    ' Limpar formatações anteriores na planilha
-    Cells.Interior.ColorIndex = xlNone
-
-    ' Encontrar a última linha da coluna B (ID Venda)
-    ultimaLinha = Cells(Rows.Count, "B").End(xlUp).Row
-
-    ' Criar/limpar coluna auxiliar para marcação de erros
-    Cells(2, 6).Value = "Status"
-    Range("F3:F" & ultimaLinha).ClearContents
-
-    ' Formatar coluna de data no padrão correto
-
-With Sheets("BD") ' <-- garanta que está na aba correta
-    For Each celula In .Range("C3:C" & ultimaLinha)
-        If Not IsEmpty(celula.Value) Then
-            If IsDate(celula.Value) Then
-                celula.Value = CDate(celula.Value)
-            End If
-        End If
-    Next celula
-    .Range("C3:C" & ultimaLinha).NumberFormat = "dd/mm/yyyy"
-End With
-    ' Início do loop para varrer cada linha
-    For i = 3 To ultimaLinha
-
-        erroEncontrado = False ' Resetar erro na linha atual
+    ' Loop pelos arquivos na pasta
+    arquivo = Dir(pastaAlvo & "*.xls")
+    Do While arquivo <> ""
+        ' Abrir o arquivo de origem
+        Set wbOrigem = Workbooks.Open(pastaAlvo & arquivo)
+        Set ws = wbOrigem.Sheets(1)
         
-        ' Capturar dados da linha
-        codigoProduto = Cells(i, 4).Value
-        On Error Resume Next
-        dataVenda = Cells(i, 3).Value
-        valorVenda = Cells(i, 5).Value
-        On Error GoTo 0
+        ' Remover quebra de texto
+        ws.Cells.WrapText = False
+        
+        ' Remover qualquer mesclagem na planilha
+        ws.Cells.UnMerge
 
-        ' ==== Validação do Código do Produto ====
-        If codigoProduto <> "A123" And codigoProduto <> "B456" And codigoProduto <> "C789" Then
-            erroEncontrado = True
-            Cells(i, 4).Interior.Color = RGB(255, 199, 206) ' Destacar em vermelho claro
-            Cells(i, 6).Value = "A ser validada"
-        End If
+        ' Mesclar e centralizar celulas
+        'With ws.Range("A1:AV") ' Ajuste o intervalo conforme necessï¿½rio
+        '.Merge
+        '.HorizontalAlignment = xlCenter
+        '.VerticalAlignment = xlCenter
+        'End With
 
-        ' ==== Validação da Data da Venda ====
-        If IsDate(dataVenda) Then
-            If dataVenda > dataLimite Then
-                erroEncontrado = True
-                Cells(i, 3).Interior.Color = RGB(255, 199, 206) ' Destacar data inválida
-                Cells(i, 6).Value = "Erro"
+        ' Ajustes nas colunas e linhas
+        ws.Rows("1:3").Delete
+        ws.Cells(1, 1).Value = "Codigo produto"
+        
+        ' Encontra a ultima linha com dados na coluna A
+        ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        
+        
+        ' Encontra a ultima coluna com dados na linha 1
+        ultimaColuna = ws.Cells(1, ws.Columns.Count).End(xlToLeft).Column
+
+        ' Congela os paineis acima da Celula A2
+        ws.Range("A2").Select
+        ActiveWindow.FreezePanes = True
+
+
+        ' Remover colunas desnecessarias
+        ws.Range("B:B,D:D,E:E,F:F,H:H,J:J,L:L,M:M,O:O,P:P,R:R,S:S,T:T,V:V,W:W,Y:Y,Z:Z,AA:AA,AC:AC,AD:AD,AF:AF,AI:AI,AJ:AJ,AL:AL,AM:AM,AO:AO,AQ:AQ,AR:AR").EntireColumn.Delete
+
+
+        ' Excluir linhas vazias na coluna A
+        For ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row To 1 Step -1
+            If ws.Cells(ultimaLinha, 1).Value = "" Then
+                ws.Rows(ultimaLinha).Delete
             End If
+        Next ultimaLinha
+
+        ' Excluir linhas vazias
+        For ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row To 1 Step -1
+            If Application.WorksheetFunction.CountA(ws.Rows(ultimaLinha)) = 0 Then
+                ws.Rows(ultimaLinha).Delete
+            End If
+        Next ultimaLinha
+
+        ' Excluir linhas que contenham "SUPER MINI BOX Matriz" na coluna A
+        For ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row To 1 Step -1
+            If ws.Cells(ultimaLinha, 1).Value Like "*SUPER MINI BOX Matriz*" Then
+                ws.Rows(ultimaLinha).Delete
+            End If
+        Next ultimaLinha
+
+
+        ' Remover linhas desnecessï¿½rias
+        Dim textosExcluir As Variant, texto As Variant
+        textosExcluir = Array("*Valores e quantidades*", "*Relatório*", "*Total*", "*Cód. Produto*", "*-*", "*Filial:*")
+        For ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row To 1 Step -1
+            For Each texto In textosExcluir
+                If ws.Cells(ultimaLinha, 1).Value Like texto Then
+                    ws.Rows(ultimaLinha).Delete
+                    Exit For
+                End If
+            Next texto
+        Next ultimaLinha
+
+        ' Adicionar coluna Data
+        ws.Columns("B:B").Insert Shift:=xlToRight
+        ws.Cells(1, 2).Value = "Data"
+        numeroMes = Split(arquivo, " ")(2)
+        numeroDia = Split(arquivo, " ")(1)
+        dataFormatada = DateSerial(2025, CInt(numeroMes), CInt(numeroDia))
+        dataEspecifica = Format(dataFormatada, "dd/mm/yyyy")
+        ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        ws.Range("B2:B" & ultimaLinha).Value = dataEspecifica
+
+
+        ' Adicionar coluna loja
+        NomeLoja = Split(arquivo, " ")(0)
+        ws.Columns("C:C").Insert Shift:=xlToRight
+        ws.Cells(1, 3).Value = "Loja"
+        ws.Range("C2:C" & ultimaLinha).Value = NomeLoja
+        
+        
+
+        ' Adicionar coluna "Categoria" com formula PROCV
+        ws.Columns("E:E").Insert Shift:=xlToRight
+        ws.Cells(1, 5).Value = "Categoria"
+        ws.Range("E2:E" & ultimaLinha).FormulaLocal = "=PROCV(A2;'[Produtos cadastrados.xlsx]Planilha1'!$A$2:$C$65536;3;0)"
+
+        ' Adicionar coluna "Compradores" com base na categoria
+        ws.Columns("F:F").Insert Shift:=xlToRight
+        ws.Cells(1, 6).Value = "Compradores"
+        For i = 2 To ultimaLinha
+            If compradoresCategorias.exists(ws.Cells(i, 5).Value) Then
+                ws.Cells(i, 6).Value = compradoresCategorias(ws.Cells(i, 5).Value)
+            Else
+                ws.Cells(i, 6).Value = "NAO MAPEADO"
+            End If
+        Next i
+        
+        
+        ' Adicionar coluna "Fat. real" e formula
+        'ws.Columns("G:G").Insert Shift:=xlToRight, CopyOrigin:=xlFormatFromLeftOrAbove
+        'ws.Cells(1, 7).Value = "Fat. real"
+
+        ' Inserir fórmula   na célula G2 e preencher até a última linha
+        'ultimaLinha = ws.Cells(ws.Rows.Count, "A").End(xlUp).Row
+        'ws.Range("G2").Formula = "=H2-J2" ' Ajuste F2 e E2 para as colunas corretas
+        'ws.Range("G2:G" & ultimaLinha).FillDown
+        
+        ' Remover colunas desnecessï¿½rias
+        ws.Range("P:P").EntireColumn.Delete
+
+
+        ' Copiar para o arquivo de destino
+        If primeiraPlanilha Then
+            ws.UsedRange.Copy wbDestino.Sheets(1).Cells(1, 1)
+            primeiraPlanilha = False
         Else
-            erroEncontrado = True
-            Cells(i, 3).Interior.Color = RGB(255, 199, 206) ' Data não reconhecida
-            Cells(i, 6).Value = "Erro"
+            ws.Range("A2:V" & ultimaLinha).Copy wbDestino.Sheets(1).Cells(wbDestino.Sheets(1).Rows.Count, 1).End(xlUp).Offset(1, 0)
         End If
 
-        ' ==== Validação do Valor da Venda ====
-        If valorVenda < 0 Then
-            erroEncontrado = True
-            Cells(i, 5).Interior.Color = RGB(255, 199, 206) ' Valor negativo não permitido
-            Cells(i, 6).Value = "Erro"
-        End If
-        If valorVenda = 0 Then
-            erroEncontrado = True
-            Cells(i, 5).Interior.Color = RGB(255, 199, 206) ' Valor negativo não permitido
-            Cells(i, 6).Value = "Erro"
-        End If
+        wbOrigem.Close SaveChanges:=False
+        arquivo = Dir()
+    Loop
 
-        ' ==== Detecção de Outlier (não é erro, é alerta) ====
-        If valorVenda > 100000 Then
-            Cells(i, 5).Interior.Color = RGB(255, 235, 156) ' Amarelo claro para alerta
-            If Cells(i, 6).Value = "" Then Cells(i, 6).Value = "A ser validada"
-        End If
+    ' Salvar e fechar o arquivo de destino
+    wbDestino.Save
+    wbDestino.Close
 
-        ' ==== Marcar erro geral na linha ====
-        If erroEncontrado And Cells(i, 6).Value = "" Then
-            Cells(i, 6).Value = "Erro"
-        End If
-
-        ' Verificar se houve algum erro no geral
-        If erroEncontrado Then
-            errosTotais = True
-        End If
-
-    Next i
-
-    ' ==== Aplicar filtro ====
-    Rows("2:2").AutoFilter Field:=6, Criteria1:="<>"
-
-    ' ==== Mensagem final ====
-    If errosTotais Then
-        MsgBox "Validação concluída. Existem erros ou itens a serem validados. A planilha foi filtrada para revisão.", vbExclamation, "Validação Finalizada"
-    Else
-        MsgBox "Validação concluída. Nenhum erro encontrado na planilha.", vbInformation, "Validação Finalizada"
-        ' Remover filtro se não houver erros
-        If ActiveSheet.AutoFilterMode Then ActiveSheet.AutoFilterMode = False
-    End If
-
+    MsgBox "Processamento concluído!", vbInformation
 End Sub
-
