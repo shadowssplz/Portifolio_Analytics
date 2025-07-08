@@ -1,0 +1,120 @@
+Sub ValidarPlanilhaDeVendas()
+
+    ' Declaração de variáveis
+    Dim ultimaLinha As Long
+    Dim i As Long
+    Dim codigoProduto As String
+    Dim dataVenda As Date
+    Dim valorVenda As Double
+    Dim erroEncontrado As Boolean
+    Dim errosTotais As Boolean
+    Dim celula As Range
+    
+    ' Verifica se a planilha ativa é "BD"
+    If ActiveSheet.Name <> "BD" Then
+        MsgBox "Por favor, execute este código apenas na planilha 'BD'.", vbExclamation
+        Exit Sub
+    End If
+
+    ' Definir a data limite do relatório
+    Dim dataLimite As Date
+    dataLimite = DateSerial(2025, 5, 20)
+
+    ' Limpar formatações anteriores na planilha
+    Cells.Interior.ColorIndex = xlNone
+
+    ' Encontrar a última linha da coluna B (ID Venda)
+    ultimaLinha = Cells(Rows.Count, "B").End(xlUp).Row
+
+    ' Criar/limpar coluna auxiliar para marcação de erros
+    Cells(2, 6).Value = "Status"
+    Range("F3:F" & ultimaLinha).ClearContents
+
+    ' Formatar coluna de data no padrão correto
+
+With Sheets("BD") ' <-- garanta que está na aba correta
+    For Each celula In .Range("C3:C" & ultimaLinha)
+        If Not IsEmpty(celula.Value) Then
+            If IsDate(celula.Value) Then
+                celula.Value = CDate(celula.Value)
+            End If
+        End If
+    Next celula
+    .Range("C3:C" & ultimaLinha).NumberFormat = "dd/mm/yyyy"
+End With
+    ' Início do loop para varrer cada linha
+    For i = 3 To ultimaLinha
+
+        erroEncontrado = False ' Resetar erro na linha atual
+        
+        ' Capturar dados da linha
+        codigoProduto = Cells(i, 4).Value
+        On Error Resume Next
+        dataVenda = Cells(i, 3).Value
+        valorVenda = Cells(i, 5).Value
+        On Error GoTo 0
+
+        ' ==== Validação do Código do Produto ====
+        If codigoProduto <> "A123" And codigoProduto <> "B456" And codigoProduto <> "C789" Then
+            erroEncontrado = True
+            Cells(i, 4).Interior.Color = RGB(255, 199, 206) ' Destacar em vermelho claro
+            Cells(i, 6).Value = "A ser validada"
+        End If
+
+        ' ==== Validação da Data da Venda ====
+        If IsDate(dataVenda) Then
+            If dataVenda > dataLimite Then
+                erroEncontrado = True
+                Cells(i, 3).Interior.Color = RGB(255, 199, 206) ' Destacar data inválida
+                Cells(i, 6).Value = "Erro"
+            End If
+        Else
+            erroEncontrado = True
+            Cells(i, 3).Interior.Color = RGB(255, 199, 206) ' Data não reconhecida
+            Cells(i, 6).Value = "Erro"
+        End If
+
+        ' ==== Validação do Valor da Venda ====
+        If valorVenda < 0 Then
+            erroEncontrado = True
+            Cells(i, 5).Interior.Color = RGB(255, 199, 206) ' Valor negativo não permitido
+            Cells(i, 6).Value = "Erro"
+        End If
+        If valorVenda = 0 Then
+            erroEncontrado = True
+            Cells(i, 5).Interior.Color = RGB(255, 199, 206) ' Valor negativo não permitido
+            Cells(i, 6).Value = "Erro"
+        End If
+
+        ' ==== Detecção de Outlier (não é erro, é alerta) ====
+        If valorVenda > 100000 Then
+            Cells(i, 5).Interior.Color = RGB(255, 235, 156) ' Amarelo claro para alerta
+            If Cells(i, 6).Value = "" Then Cells(i, 6).Value = "A ser validada"
+        End If
+
+        ' ==== Marcar erro geral na linha ====
+        If erroEncontrado And Cells(i, 6).Value = "" Then
+            Cells(i, 6).Value = "Erro"
+        End If
+
+        ' Verificar se houve algum erro no geral
+        If erroEncontrado Then
+            errosTotais = True
+        End If
+
+    Next i
+
+    ' ==== Aplicar filtro ====
+    Rows("2:2").AutoFilter Field:=6, Criteria1:="<>"
+
+    ' ==== Mensagem final ====
+    If errosTotais Then
+        MsgBox "Validação concluída. Existem erros ou itens a serem validados. A planilha foi filtrada para revisão.", vbExclamation, "Validação Finalizada"
+    Else
+        MsgBox "Validação concluída. Nenhum erro encontrado na planilha.", vbInformation, "Validação Finalizada"
+        ' Remover filtro se não houver erros
+        If ActiveSheet.AutoFilterMode Then ActiveSheet.AutoFilterMode = False
+    End If
+
+End Sub
+
